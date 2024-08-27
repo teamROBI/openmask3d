@@ -34,7 +34,7 @@ def main(ctx: DictConfig):
     print(f"[INFO] Masks loaded. {masks.num_masks} masks found.")    
     
     # 2. Load the images
-    indices = np.arange(0, get_number_of_images(ctx.data.camera.poses_path), step = ctx.openmask3d.frequency)
+    indices = np.arange(0, get_number_of_images(ctx.data.camera.poses_path), step = ctx.openmask3d.frequency * 2)
     images = Images(images_path=ctx.data.images.images_path, 
                     extension=ctx.data.images.images_ext, 
                     indices=indices)
@@ -69,13 +69,13 @@ def main(ctx: DictConfig):
                                                    num_levels=ctx.openmask3d.num_of_levels, 
                                                    num_random_rounds=ctx.openmask3d.num_random_rounds,
                                                    num_selected_points=ctx.openmask3d.num_selected_points,
-                                                   save_crops=ctx.output.save_crops,
+                                                   save_crops=False,
                                                    out_folder=out_folder,
-                                                   optimize_gpu_usage=ctx.gpu.optimize_gpu_usage)
+                                                   optimize_gpu_usage=False)
     print("[INFO] Features computed.")
     # 6. Save features
     scene_name = os.path.join(ctx.data.masks.masks_path).split("/")[-1][:-9]
-    filename = f"{scene_name}_openmask3d_features.npy"
+    filename = f"{scene_name}_features.npy"
     output_path = os.path.join(out_folder, filename)
     np.save(output_path, features)
     print(f"[INFO] Masks features saved to {output_path}.")

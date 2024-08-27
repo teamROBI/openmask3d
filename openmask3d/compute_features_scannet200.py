@@ -1,9 +1,9 @@
 import hydra
 from omegaconf import DictConfig
 import numpy as np
-from openmask3d.data.load import Camera, InstanceMasks3D, Images, PointCloud, get_number_of_images
-from openmask3d.utils import get_free_gpu, create_out_folder
-from openmask3d.mask_features_computation.features_extractor import FeaturesExtractor
+from data.load import Camera, InstanceMasks3D, Images, PointCloud, get_number_of_images
+from utils import get_free_gpu, create_out_folder
+from mask_features_computation.features_extractor import FeaturesExtractor
 import torch
 import os
 from glob import glob
@@ -12,7 +12,7 @@ from glob import glob
 @hydra.main(config_path="configs", config_name="openmask3d_scannet200_eval")
 def main(ctx: DictConfig):
     device = "cpu"  # "mps" if torch.backends.mps.is_available() else "cpu"
-    device = get_free_gpu(7000) if torch.cuda.is_available() else device
+    device = get_free_gpu(7000, ctx.gpu.device_num) if torch.cuda.is_available() else device
     print(f"[INFO] Using device: {device}")
     out_folder = ctx.output.output_directory
     os.chdir(hydra.utils.get_original_cwd())
@@ -21,21 +21,40 @@ def main(ctx: DictConfig):
     print(f"[INFO] Saving feature results to {out_folder}")
     masks_paths = sorted(glob(os.path.join(ctx.data.masks.masks_path, ctx.data.masks.masks_suffix)))
     
-    for masks_path in masks_paths:
-        
+    print("[INFO] Total scenes:", len(masks_paths))
+    part_length = len(masks_paths) // ctx.multiprocess.subprocess_num
+    start = ctx.multiprocess.part * part_length
+    if ctx.multiprocess.part == ctx.multiprocess.subprocess_num - 1:
+        end = len(masks_paths)
+    else:
+        end = start + part_length
+    print(f"Subprocess {start} : {end}")
+
+    for masks_path in masks_paths[start:end]:        
         scene_num_str = masks_path.split('/')[-1][5:12]
-        path = os.path.join(ctx.data.scans_path, 'scene'+ scene_num_str)
-        poses_path = os.path.join(path,ctx.data.camera.poses_path)
-        point_cloud_path = glob(os.path.join(path, '*vh_clean_2.ply'))[0]
-        intrinsic_path = os.path.join(path, ctx.data.camera.intrinsic_path)
-        images_path = os.path.join(path, ctx.data.images.images_path)
-        depths_path = os.path.join(path, ctx.data.depths.depths_path)
         
+        filename = f"scene{scene_num_str}.npy"
+        output_path = os.path.join(out_folder, filename)
+        if os.path.isfile(output_path):
+            print(f"[INFO] {output_path} exists, skipping scene {scene_num_str}")
+            continue
+        print(f"[INFO] Processing: scene{scene_num_str}")
+        path = ctx.data.scans_path
+        point_cloud_path = glob(os.path.join(path, 'scene'+ scene_num_str+'.ply'))[0]
+
+        process_path = os.path.join(ctx.data.scans_2d_path, 'scene'+ scene_num_str)
+        poses_path = os.path.join(process_path,ctx.data.camera.poses_path)
+        intrinsic_path = os.path.join(process_path, ctx.data.camera.intrinsic_path)
+        images_path = os.path.join(process_path, ctx.data.images.images_path)
+        depths_path = os.path.join(process_path, ctx.data.depths.depths_path)
+
         # 1. Load the masks
         masks = InstanceMasks3D(masks_path) 
 
         # 2. Load the images
-        indices = np.arange(0, get_number_of_images(poses_path), step = ctx.openmask3d.frequency)
+        total_images = get_number_of_images(poses_path)
+        indices = np.arange(0, total_images, step = ctx.openmask3d.frequency)
+        print(f"[INFO] Total image count: {total_images}. Selected {len(indices)} images with frequency {ctx.openmask3d.frequency}")
         images = Images(images_path=images_path, 
                         extension=ctx.data.images.images_ext, 
                         indices=indices)
@@ -72,8 +91,6 @@ def main(ctx: DictConfig):
                                                         optimize_gpu_usage=ctx.gpu.optimize_gpu_usage)
         
         # 6. Save features
-        filename = f"scene{scene_num_str}_openmask3d_features.npy"
-        output_path = os.path.join(out_folder, filename)
         np.save(output_path, features)
         print(f"[INFO] Mask features for scene {scene_num_str} saved to {output_path}.")
     

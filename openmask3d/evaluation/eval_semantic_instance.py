@@ -28,6 +28,7 @@ import os, sys
 from copy import deepcopy
 from uuid import uuid4
 import pdb
+import math
 import torch
 
 try:
@@ -749,16 +750,64 @@ def print_results_ap_ar_rc_pcdc(avgs, ar_avgs, rc_avgs, pcdc_avgs, print_mode={'
 
 
 def write_result_file(avgs, filename):
-    _SPLITTER = ','
+    print(f"[INFO] Evaluation result saved in {filename}")
+    col_width = 20  # Set a fixed column width for better alignment
+    header = "{:<20}{:<10}{:<15}{:<15}{:<15}".format('Class', 'Class ID', 'AP', 'AP_50%', 'AP_25%')
+
     with open(filename, 'w') as f:
-        f.write(_SPLITTER.join(['class', 'class id', 'ap', 'ap50', 'ap25']) + '\n')
+        # Write the header
+        f.write(header + '\n')
+        f.write('-' * (col_width * 3 + 30) + '\n')  # Add a separator line
+
+        mAP, mAP50, mAP25 = 0.0, 0.0, 0.0  # Initialize total AP for mean calculation
+        valid_count = 0  # Initialize a counter for valid AP values
+
+        # Write the per-class results
         for i in range(len(VALID_CLASS_IDS)):
             class_name = CLASS_LABELS[i]
             class_id = VALID_CLASS_IDS[i]
             ap = avgs["classes"][class_name]["ap"]
             ap50 = avgs["classes"][class_name]["ap50%"]
             ap25 = avgs["classes"][class_name]["ap25%"]
-            f.write(_SPLITTER.join([str(x) for x in [class_name, class_id, ap, ap50, ap25]]) + '\n')
+            
+            # Check for valid (non-nan) AP values before adding
+            if not math.isnan(ap):
+                mAP += ap
+            if not math.isnan(ap50):
+                mAP50 += ap50
+            if not math.isnan(ap25):
+                mAP25 += ap25
+            if not math.isnan(ap):
+                valid_count += 1  # Increment valid count only for non-nan AP
+
+            line = "{:<20}{:<10}{:<15.3f}{:<15.3f}{:<15.3f}".format(class_name, class_id, ap, ap50, ap25)
+            f.write(line + '\n')
+        
+        # Calculate the mean AP (considering only valid entries)
+        if valid_count > 0:
+            mAP, mAP50, mAP25 = [x / valid_count for x in [mAP, mAP50, mAP25]]
+        else:
+            mAP, mAP50, mAP25 = float('nan'), float('nan'), float('nan')  # Handle case with no valid APs
+        
+        f.write('\n')
+        
+        # Write the head, common, and tail results
+        if 'scannet200' in DATASET_NAME:  # Check if the dataset is scannet200
+            f.write('-' * (col_width * 3 + 30) + '\n')  # Add a separator line
+            for cat_type in ['head', 'common', 'tail']:
+                cat_ap = avgs[cat_type+'_ap']
+                cat_ap50 = avgs[cat_type+'_ap50%']
+                cat_ap25 = avgs[cat_type+'_ap25%']
+                line = "{:<20}{:<10}{:<15.3f}{:<15.3f}{:<15.3f}".format(cat_type.capitalize(), '', cat_ap, cat_ap50, cat_ap25)
+                f.write(line + '\n')
+        
+        # Write the mean AP result
+        f.write('\n')
+        f.write('-' * (col_width * 3 + 30) + '\n')  # Add a separator line
+        mean_ap_line = "{:<20}{:<10}{:<15.3f}{:<15.3f}{:<15.3f}".format("Mean AP", '', mAP, mAP50, mAP25)
+        f.write(mean_ap_line + '\n')
+
+
 
 
 def evaluate(preds: dict, gt_path: str, output_file: str, dataset: str = "scannet"):
@@ -890,7 +939,8 @@ def evaluate(preds: dict, gt_path: str, output_file: str, dataset: str = "scanne
     # print
     #print_results(avgs)
     print_results_ap_ar_rc_pcdc(avgs, ar_avgs, rc_avgs, pcdc_avgs)
-    # write_result_file(avgs, output_file)
+    write_result_file(avgs, output_file)
+    
     return avgs, ar_avgs, rc_avgs, pcdc_avgs
 
 def main():

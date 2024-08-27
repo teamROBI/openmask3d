@@ -8,7 +8,7 @@ import os
 
 def get_number_of_images(poses_path):
     i = 0
-    while(os.path.isfile(os.path.join(poses_path, str(i) + '.txt'))): i += 1
+    while os.path.isfile(os.path.join(poses_path, str(i) + '.txt')): i += 1 #20
     return i
 
 class Camera:

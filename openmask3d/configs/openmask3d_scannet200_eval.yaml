@@ -1,18 +1,19 @@
 data:
-  scans_path: '/cluster/project/cvg/weders/data/scannet/scans/'
+  scans_path: '/home/robi/PycharmProjects/SegmentAnything3D/data/scannetv2/input/pointcept_process/val'
+  scans_2d_path: '/home/robi/PycharmProjects/SegmentAnything3D/data/scannetv2/input/scannetv2_images/val'
   masks:
-    masks_path: '/cluster/scratch/efedele/masks' #scannet200
-    masks_suffix: '*_masks.pt'
+    masks_path: '/home/robi/PycharmProjects/SegmentAnything3D/output/scannetv2/small_overlap_0.5/mask_array'
+    masks_suffix: '*.pt'
   camera:
-    poses_path: 'data/pose/'
-    intrinsic_path: 'data/intrinsic/intrinsic_color.txt'
-    intrinsic_resolution: [968, 1296]
+    poses_path: 'pose/'
+    intrinsic_path: 'intrinsics/intrinsic_color.txt' #intrinsic_color.txt, intrinsic_depth.txt
+    intrinsic_resolution: [968, 1296] #[968, 1296] [480, 640]
   depths:
-    depths_path: 'data_compressed/depth/'
+    depths_path: 'depth/'
     depths_ext: '.png'
     depth_scale: 1000
   images:
-    images_path: 'data_compressed/color/'  
+    images_path: 'color/'
     images_ext: '.jpg'
 
 openmask3d:
@@ -25,7 +26,7 @@ openmask3d:
   num_selected_points: 5
 
 external:
-  sam_checkpoint: '/cluster/scratch/efedele/checkpoints/sam_vit_h_4b8939.pth'
+  sam_checkpoint: 'sam_vit_h_4b8939.pth'
   sam_model_type: 'vit_h'
   clip_model: 'ViT-L/14@336px'
 
@@ -36,3 +37,8 @@ output:
 
 gpu:
   optimize_gpu_usage: False
+  device_num: None
+
+multiprocess:
+  part: 0
+  subprocess_num: 1

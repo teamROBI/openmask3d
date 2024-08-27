@@ -4,7 +4,7 @@ import clip
 import torch
 import pdb
 from eval_semantic_instance import evaluate
-from scannet_constants import SCANNET_COLOR_MAP_20, VALID_CLASS_IDS_20, CLASS_LABELS_20, SCANNET_COLOR_MAP_200, VALID_CLASS_IDS_200, CLASS_LABELS_200
+from scannet_constants import SCANNET_COLOR_MAP_40, VALID_CLASS_IDS_20, CLASS_LABELS_20, SCANNET_COLOR_MAP_200, VALID_CLASS_IDS_200, CLASS_LABELS_200
 import tqdm
 import argparse
 
@@ -108,7 +108,7 @@ class InstSegEvaluator():
 
         return pred_masks, pred_classes, pred_scores
 
-    def evaluate_full(self, preds, scene_gt_dir, dataset, output_file='temp_output.txt'):
+    def evaluate_full(self, preds, scene_gt_dir, dataset, output_file='temp_evaluation_output.txt'):
         #pred_masks.shape, pred_scores.shape, pred_classes.shape #((237360, 177), (177,), (177,))
 
         inst_AP = evaluate(preds, scene_gt_dir, output_file=output_file, dataset=dataset)
@@ -125,8 +125,8 @@ def test_pipeline_full_scannet200(mask_features_dir,
                                     clip_model_type='ViT-L/14@336px',
                                     keep_first = None,
                                     scene_list_file='evaluation/val_scenes_scannet200.txt',
-                                    masks_template='_masks.pt'
-                         ):
+                                    masks_template='.pt',
+                                    output_file='temp_evaluation_output.txt'):
 
 
     evaluator = InstSegEvaluator(dataset_type, clip_model_type, sentence_structure)
@@ -138,15 +138,13 @@ def test_pipeline_full_scannet200(mask_features_dir,
     preds = {}
 
     for scene_name in tqdm.tqdm(scene_names[:]):
-
-        scene_id = scene_name[5:]
-
         masks_path = os.path.join(pred_root_dir, scene_name + masks_template)
         scene_per_mask_feature_path = os.path.join(mask_features_dir, feature_file_template.format(scene_name))
 
         if not os.path.exists(scene_per_mask_feature_path):
             print('--- SKIPPING ---', scene_per_mask_feature_path)
             continue
+        
         pred_masks, pred_classes, pred_scores = evaluator.compute_classes_per_mask_diff_scores(masks_path=masks_path, 
                                                                                                mask_features_path=scene_per_mask_feature_path,
                                                                                                keep_first=keep_first)
@@ -156,7 +154,7 @@ def test_pipeline_full_scannet200(mask_features_dir,
             'pred_scores': pred_scores,
             'pred_classes': pred_classes}
 
-    inst_AP = evaluator.evaluate_full(preds, gt_dir, dataset=dataset_type)
+    inst_AP = evaluator.evaluate_full(preds, gt_dir, dataset=dataset_type, output_file=output_file)
 
 
 if __name__ == '__main__':
@@ -165,13 +163,17 @@ if __name__ == '__main__':
     parser.add_argument('--gt_dir', type=str, help='path to directory of GT .txt files')
     parser.add_argument('--mask_pred_dir', type=str, help='path to the saved class agnostic masks')
     parser.add_argument('--mask_features_dir', type=str, help='path to the saved mask features')
-    parser.add_argument('--feature_file_template', type=str, default="{}_openmask3d_features.npy")
+    parser.add_argument('--feature_file_template', type=str, default="{}.npy")
     parser.add_argument('--sentence_structure', type=str, default="a {} in a scene", help='sentence structure for 3D closed-set evaluation')
     parser.add_argument('--scene_list_file', type=str, default="evaluation/val_scenes_scannet200.txt")
-    parser.add_argument('--masks_template', type=str, default="_masks.pt")
+    parser.add_argument('--masks_template', type=str, default=".pt")
+    parser.add_argument('--evaluation_output_dir', type=str, default="temp_evaluation_output.txt")
 
     opt = parser.parse_args()
 
     # ScanNet200, "a {} in a scene", all masks are assigned 1.0 as the confidence score
-    test_pipeline_full_scannet200(opt.mask_features_dir, opt.gt_dir, opt.mask_pred_dir, opt.sentence_structure, opt.feature_file_template, dataset_type='scannet200', clip_model_type='ViT-L/14@336px', keep_first=None, scene_list_file=opt.scene_list_file, masks_template=opt.masks_template)
+    test_pipeline_full_scannet200(opt.mask_features_dir, opt.gt_dir, opt.mask_pred_dir, opt.sentence_structure,
+                                  opt.feature_file_template, dataset_type='scannet200', clip_model_type='ViT-L/14@336px',
+                                  keep_first=None, scene_list_file=opt.scene_list_file, masks_template=opt.masks_template,
+                                  output_file=opt.evaluation_output_dir)
        

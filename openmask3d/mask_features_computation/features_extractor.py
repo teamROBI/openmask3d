@@ -5,8 +5,8 @@ import imageio
 import torch
 from tqdm import tqdm
 import os
-from openmask3d.data.load import Camera, InstanceMasks3D, Images, PointCloud, get_number_of_images
-from openmask3d.mask_features_computation.utils import initialize_sam_model, mask2box_multi_level, run_sam
+from data.load import Camera, InstanceMasks3D, Images, PointCloud, get_number_of_images
+from mask_features_computation.utils import initialize_sam_model, mask2box_multi_level, run_sam
 
 class PointProjector:
     def __init__(self, camera: Camera, 
@@ -40,7 +40,7 @@ class PointProjector:
         visible_points_view = np.zeros((len(indices), n_points), dtype = bool)
         print(f"[INFO] Computing the visible points in each view.")
         
-        for i, idx in tqdm(enumerate(indices)): # for each view
+        for i, idx in tqdm(enumerate(indices), total=len(indices)): # for each view
             # *******************************************************************************************************************
             # STEP 1: get the projected points
             # Get the coordinates of the projected points in the i-th view (i.e. the view with index idx)
@@ -133,6 +133,7 @@ class FeaturesExtractor:
         mask_clip = np.zeros((num_masks, 768)) #initialize mask clip
         
         np_images = self.images.get_as_np_list()
+        print(f"[INFO] Extracting features for {num_masks} masks...")
         for mask in tqdm(range(num_masks)): # for each mask 
             images_crops = []
             if(optimize_gpu_usage):
@@ -169,7 +170,7 @@ class FeaturesExtractor:
             
             if(optimize_gpu_usage):
                 self.predictor_sam.model.cpu()
-                self.clip_model.to(torch.device('cuda'))                
+                self.clip_model.to(torch.device(self.device))                
             if(len(images_crops) > 0):
                 image_input = torch.tensor(np.stack(images_crops))
                 with torch.no_grad():
